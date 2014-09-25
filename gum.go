@@ -12,6 +12,8 @@ import (
   "sort"
 )
 
+var Ignore_list map[string]bool
+
 func getRpms() []string {
   cmd := exec.Command("rpm", "-qlav")
   var out bytes.Buffer
@@ -102,45 +104,7 @@ func getManagedFiles() (map[string]string, map[string]bool) {
   return files, dirs
 }
 
-func printJsonString(jsonMap map[string]string, file_name string) {
-  b, err := json.Marshal(jsonMap)
-
-  if err != nil {
-    log.Fatal("JSON conversion failes")
-  }
-
-  f, err := os.Create(file_name)
-  if err != nil {
-    panic(err)
-  }
-
-  defer f.Close()
-
-  var out bytes.Buffer
-  json.Indent(&out, b, "", "  ")
-  out.WriteTo(f)
-}
-
-func printJsonArray(jsonMap []map[string]string, file_name string) {
-  b, err := json.Marshal(jsonMap)
-
-  if err != nil {
-    log.Fatal("JSON conversion failes")
-  }
-
-  f, err := os.Create(file_name)
-  if err != nil {
-    panic(err)
-  }
-
-  defer f.Close()
-
-  var out bytes.Buffer
-  json.Indent(&out, b, "", "  ")
-  out.WriteTo(f)
-}
-
-func printJsonBool(jsonMap map[string]bool, file_name string) {
+func printJson(jsonMap interface{}, file_name string) {
   b, err := json.Marshal(jsonMap)
 
   if err != nil {
@@ -160,6 +124,32 @@ func printJsonBool(jsonMap map[string]bool, file_name string) {
 }
 
 func findUnmanagedFiles(dir string, rpm_files map[string]string, rpm_dirs map[string]bool, unmanaged_files map[string]string) {
+  files, _ := ioutil.ReadDir(dir)
+  for _, f := range files {
+    file_name := dir + f.Name()
+    if _, ok := Ignore_list[file_name]; !ok {
+      if f.IsDir() {
+        if _, ok := rpm_dirs[file_name]; ok {
+          findUnmanagedFiles(file_name + "/", rpm_files, rpm_dirs, unmanaged_files)
+        } else {
+          unmanaged_files[file_name + "/"] = "dir"
+        }
+      } else {
+        if _, ok := rpm_files[file_name]; !ok {
+          if f.Mode() & os.ModeSymlink == os.ModeSymlink {
+            unmanaged_files[file_name] = "link"
+          } else {
+            unmanaged_files[file_name] = "file"
+          }
+        }
+      }
+    }
+  }
+}
+
+func main() {
+//  showRpms()
+//  showDir("/home")
   ignore_list := map[string]bool{
     "/etc/group": true,
     "/etc/passwd": true,
@@ -187,41 +177,15 @@ func findUnmanagedFiles(dir string, rpm_files map[string]string, rpm_dirs map[st
     "/var/spool/postfix/private": true,
     "/var/spool/postfix/public": true,
   }
-
-  files, _ := ioutil.ReadDir(dir)
-  for _, f := range files {
-    file_name := dir + f.Name()
-    if _, ok := ignore_list[file_name]; !ok {
-      if f.IsDir() {
-        if _, ok := rpm_dirs[file_name]; ok {
-          findUnmanagedFiles(file_name + "/", rpm_files, rpm_dirs, unmanaged_files)
-        } else {
-          unmanaged_files[file_name + "/"] = "dir"
-        }
-      } else {
-        if _, ok := rpm_files[file_name]; !ok {
-          if f.Mode() & os.ModeSymlink == os.ModeSymlink {
-            unmanaged_files[file_name] = "link"
-          } else {
-            unmanaged_files[file_name] = "file"
-          }
-        }
-      }
-    }
-  }
-}
-
-func main() {
-//  showRpms()
-//  showDir("/home")
+  Ignore_list = ignore_list
 
   rpm_files, rpm_dirs := getManagedFiles()
 
   var unmanaged_files map[string]string
   unmanaged_files = make(map[string]string)
 
-  printJsonString(rpm_files, "RPM_FILES")
-  printJsonBool(rpm_dirs, "RPM_DIRS")
+  printJson(rpm_files, "RPM_FILES")
+  printJson(rpm_dirs, "RPM_DIRS")
 
   findUnmanagedFiles("/", rpm_files, rpm_dirs, unmanaged_files)
 
@@ -241,5 +205,5 @@ func main() {
     unmanaged_files_json[j] = entry
   }
 
-  printJsonArray(unmanaged_files_json, "UNMANAGED_FILES")
+  printJson(unmanaged_files_json, "UNMANAGED_FILES")
 }
