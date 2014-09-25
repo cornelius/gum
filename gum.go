@@ -10,6 +10,7 @@ import (
   "encoding/json"
   "os"
   "sort"
+  "path/filepath"
 )
 
 var Ignore_list map[string]bool
@@ -123,28 +124,40 @@ func printJson(jsonMap interface{}, file_name string) {
   out.WriteTo(f)
 }
 
-func findUnmanagedFiles(dir string, rpm_files map[string]string, rpm_dirs map[string]bool, unmanaged_files map[string]string) {
-  files, _ := ioutil.ReadDir(dir)
-  for _, f := range files {
-    file_name := dir + f.Name()
-    if _, ok := Ignore_list[file_name]; !ok {
-      if f.IsDir() {
-        if _, ok := rpm_dirs[file_name]; ok {
-          findUnmanagedFiles(file_name + "/", rpm_files, rpm_dirs, unmanaged_files)
+func findUnmanagedFiles(dir string, rpm_files map[string]string, rpm_dirs map[string]bool) map[string]string {
+  var unmanaged_files map[string]string
+  unmanaged_files = make(map[string]string)
+
+  walker := func(file_name string, file_info os.FileInfo, err error) error {
+    if file_name == "/" {
+      return nil
+    }
+    if file_info.IsDir() {
+      if _, ok := Ignore_list[file_name]; ok {
+        return filepath.SkipDir
+      }
+      if _, ok := rpm_dirs[file_name]; !ok {
+        unmanaged_files[file_name + "/"] = "dir"
+        return filepath.SkipDir
+      }
+    } else {
+      if _, ok := Ignore_list[file_name]; ok {
+        return nil
+      }
+      if _, ok := rpm_files[file_name]; !ok {
+        if file_info.Mode() & os.ModeSymlink == os.ModeSymlink {
+          unmanaged_files[file_name] = "link"
         } else {
-          unmanaged_files[file_name + "/"] = "dir"
-        }
-      } else {
-        if _, ok := rpm_files[file_name]; !ok {
-          if f.Mode() & os.ModeSymlink == os.ModeSymlink {
-            unmanaged_files[file_name] = "link"
-          } else {
-            unmanaged_files[file_name] = "file"
-          }
+          unmanaged_files[file_name] = "file"
         }
       }
     }
+    return nil
   }
+
+  filepath.Walk(dir, walker)
+
+  return unmanaged_files
 }
 
 func main() {
@@ -181,13 +194,10 @@ func main() {
 
   rpm_files, rpm_dirs := getManagedFiles()
 
-  var unmanaged_files map[string]string
-  unmanaged_files = make(map[string]string)
-
   printJson(rpm_files, "RPM_FILES")
   printJson(rpm_dirs, "RPM_DIRS")
 
-  findUnmanagedFiles("/", rpm_files, rpm_dirs, unmanaged_files)
+  unmanaged_files := findUnmanagedFiles("/", rpm_files, rpm_dirs)
 
   files := make([]string, len(unmanaged_files))
   i := 0
