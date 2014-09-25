@@ -22,3 +22,14 @@ _testmain.go
 *.exe
 *.test
 *.prof
+
+# Generated data files
+
+EXPECTED_*
+RPM_DIRS
+RPM_FILES
+UNMANAGED_FILES
+
+# Binary
+
+gum
