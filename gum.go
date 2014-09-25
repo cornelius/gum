@@ -182,6 +182,10 @@ func findUnmanagedFiles(dir string, rpm_files map[string]string, rpm_dirs map[st
     "/lost+found": true,
     "/var/run": true,
     "/var/lib/rpm": true,
+    "/var/lib/nfs/rpc_pipefs": true,
+    "/var/lock": true,
+    "/var/spool/postfix/private": true,
+    "/var/spool/postfix/public": true,
   }
 
   files, _ := ioutil.ReadDir(dir)
