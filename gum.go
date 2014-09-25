@@ -1,7 +1,6 @@
 package main
 
 import (
-  "fmt"
   "os/exec"
   "bytes"
   "log"
@@ -28,19 +27,6 @@ func getRpms() []string {
   }
   packages := strings.FieldsFunc(out.String(), f)
   return packages
-}
-
-func showRpms() {
-  for _, pkg := range getRpms() {
-    fmt.Printf("PACKAGE: %s\n", pkg)
-  }
-}
-
-func showDir(dir string) {
-  files, _ := ioutil.ReadDir("/home")
-  for _, f := range files {
-    fmt.Println(f.Name())
-  }
 }
 
 func parseRpmLine(line string) (file_type string, file_name string, link_target string) {
@@ -148,8 +134,6 @@ func findUnmanagedFiles(dir string, rpm_files map[string]string, rpm_dirs map[st
 }
 
 func main() {
-//  showRpms()
-//  showDir("/home")
   ignore_list := map[string]bool{
     "/etc/group": true,
     "/etc/passwd": true,
@@ -181,8 +165,7 @@ func main() {
 
   rpm_files, rpm_dirs := getManagedFiles()
 
-  var unmanaged_files map[string]string
-  unmanaged_files = make(map[string]string)
+  unmanaged_files := make(map[string]string)
 
   printJson(rpm_files, "RPM_FILES")
   printJson(rpm_dirs, "RPM_DIRS")
